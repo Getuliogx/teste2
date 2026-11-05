@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: painel-filmes-chat
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TMDB_TOKEN
+        sync: false
+      - key: PANEL_PASSWORD
+        sync: false

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel Filmes & Séries</title>
+<style>
+:root{--accent:#7200ff;--accent2:#0077ff;--bg:rgba(0,0,0,.35);--radius:8px;--font:'Montserrat'}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0b12;color:#eee;font-family:'Montserrat',sans-serif;transition:background .6s}
+header{padding:20px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.6s}
+header h1{margin:0 0 12px;font-size:22px}
+.bar{display:flex;gap:8px}
+input{flex:1;padding:12px 14px;border-radius:10px;border:0;font-size:16px}
+button{padding:12px 16px;border:0;border-radius:10px;background:#000a;color:#fff;cursor:pointer;font-weight:700}
+main{display:grid;grid-template-columns:1fr 360px;gap:20px;padding:20px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;align-content:start}
+.card{background:#171722;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:.2s}
+.card:hover{transform:translateY(-3px);border-color:var(--accent)}
+.card img,.noimg{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:#222}
+.card div{padding:8px;font-size:12px}.card b{display:block;font-size:13px}
+.side{background:#12121a;border-radius:12px;padding:16px;position:sticky;top:10px;height:fit-content}
+.tag{display:inline-block;padding:3px 9px;margin:2px;border-radius:99px;background:var(--accent);font-size:12px}
+.chat{margin-top:14px;background:#000;border-radius:10px;padding:10px;font-family:var(--font),sans-serif}
+.msg{margin:6px 0;padding:6px 10px;background:var(--bg);border-left:4px solid var(--accent);border-radius:var(--radius);box-shadow:0 0 14px -4px var(--accent);position:relative;font-family:var(--font),sans-serif}
+.msg i{position:absolute;right:8px;top:4px;opacity:.6;font-style:normal}
+.msg u{text-decoration:none;font-weight:700;color:var(--accent2);filter:brightness(1.3)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 Painel de Filmes & Séries — escolha e o chat muda de estilo</h1>
+  <div class="bar"><input id="q" placeholder="Buscar filme ou série..." autofocus><button id="clear">Limpar tema</button></div>
+</header>
+<main>
+  <div class="grid" id="grid"></div>
+  <aside class="side">
+    <div id="now">Nenhum título selecionado.</div>
+    <div class="chat" id="chat"></div>
+  </aside>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const pass = () => localStorage.getItem('pp') || '';
+const H = () => ({'Content-Type':'application/json','x-panel-password':pass()});
+let t;
+$('#q').addEventListener('input', e => { clearTimeout(t); t = setTimeout(() => search(e.target.value), 350); });
+
+async function search(q){
+  const r = await (await fetch('/api/search?q=' + encodeURIComponent(q))).json();
+  $('#grid').innerHTML = r.map(x => `<div class="card" data-t="${x.type}" data-i="${x.id}">
+    ${x.poster ? `<img loading="lazy" src="https://image.tmdb.org/t/p/w342${x.poster}">` : '<div class="noimg"></div>'}
+    <div><b>${x.title.replace(/</g,'&lt;')}</b>${x.year} · ${x.type === 'tv' ? 'Série' : 'Filme'} · ⭐${(x.rating||0).toFixed(1)}</div></div>`).join('');
+}
+$('#grid').addEventListener('click', async e => {
+  const c = e.target.closest('.card'); if(!c) return;
+  let r = await fetch('/api/select', {method:'POST', headers:H(), body:JSON.stringify({type:c.dataset.t, id:+c.dataset.i})});
+  if (r.status === 401) { localStorage.setItem('pp', prompt('Senha do painel:') || ''); r = await fetch('/api/select', {method:'POST', headers:H(), body:JSON.stringify({type:c.dataset.t, id:+c.dataset.i})}); }
+});
+$('#clear').onclick = () => fetch('/api/clear', {method:'POST', headers:H()});
+
+function show(d){
+  const s = document.documentElement.style;
+  const v = d ? d.vars : {accent:'#7200ff',accent2:'#0077ff',bg:'rgba(0,0,0,.35)',radius:'8px',font:'Montserrat',emoji:'🎬'};
+  s.setProperty('--accent', v.accent); s.setProperty('--accent2', v.accent2);
+  s.setProperty('--bg', v.bg); s.setProperty('--radius', v.radius); s.setProperty('--font', `'${v.font}'`);
+  const l = document.createElement('link'); l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=' + v.font.replace(/ /g,'+') + '&display=swap'; document.head.appendChild(l);
+  $('#now').innerHTML = d ? `<b style="font-size:18px">${v.emoji} ${d.title.replace(/</g,'&lt;')}</b><br>${d.genres.map(g=>`<span class="tag">${g}</span>`).join('')}` : 'Nenhum título selecionado.';
+  $('#chat').innerHTML = ['Quem mais tá assistindo?','Que cena incrível!','Esse final vai ser bom...'].map((m,i)=>`<div class="msg"><i>${v.emoji}</i><u>viewer${i+1}:</u><br>${m}</div>`).join('');
+}
+show(null);
+const es = new EventSource('/api/stream'); es.onmessage = e => show(JSON.parse(e.data));
+</script>
+</body>
+</html>
